@@ -2,9 +2,10 @@ package controllers
 
 import (
 	"log"
-	"net/http"
 	"main/src/application/services"
 	"main/src/domain/models"
+	"main/src/infraestructure/rabbit"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,21 +21,18 @@ func NewNotificationController(service *services.NotificationService) *Notificat
 func (c *NotificationController) ReceiveNotification(ctx *gin.Context) {
 	var rawMessage map[string]string
 
-	// Intentar bind con JSON genérico
 	if err := ctx.ShouldBindJSON(&rawMessage); err != nil {
 		log.Println("Invalid request payload")
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
-	// Crear una estructura `Notification` con valores predeterminados si faltan campos
 	notification := models.Notification{
 		Sender:        "API_REST",
-		DestinationID: "123", // Se puede cambiar según la lógica de negocio
+		DestinationID: "123", 
 		Message:       rawMessage["message"],
 	}
 
-	// Si el mensaje tiene un destino y un remitente, sobrescribir los valores predeterminados
 	if sender, exists := rawMessage["sender"]; exists {
 		notification.Sender = sender
 	}
@@ -44,8 +42,7 @@ func (c *NotificationController) ReceiveNotification(ctx *gin.Context) {
 
 	log.Printf("Processed Notification: %+v", notification)
 
-	// Procesar la notificación en el servicio
 	c.service.ProcessNotification(notification)
-
+	rabbit.SendMessagetoQueue(notification.Message)
 	ctx.JSON(http.StatusOK, gin.H{"status": "Notification processed"})
 }
